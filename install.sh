@@ -63,7 +63,6 @@ is_hook_enabled() {
     if command -v jq &>/dev/null; then
         jq -r ".hooks.${hook_name}.enabled // true" "$CONFIG_FILE"
     else
-        # 没有 jq 时默认启用
         echo "true"
     fi
 }
@@ -76,6 +75,16 @@ is_global_enabled() {
     fi
 }
 
+get_sound_path() {
+    local hook_name="$1"
+    local default_sound="$2"
+    if command -v jq &>/dev/null; then
+        jq -r ".hooks.${hook_name}.sound // \"$default_sound\"" "$CONFIG_FILE"
+    else
+        echo "$default_sound"
+    fi
+}
+
 # 检查全局开关
 GLOBAL_ENABLED=$(is_global_enabled)
 if [ "$GLOBAL_ENABLED" != "true" ]; then
@@ -85,22 +94,22 @@ fi
 # 创建 hook 脚本
 echo "📝 创建 Hook 脚本..."
 
+# 获取各 Hook 的声音路径（从配置文件读取）
+STOP_SOUND=$(get_sound_path "stop" "/System/Library/Sounds/Sosumi.aiff")
+NOTIFICATION_SOUND=$(get_sound_path "notification" "/System/Library/Sounds/Basso.aiff")
+SUBAGENT_SOUND=$(get_sound_path "subagent_stop" "/System/Library/Sounds/Ping.aiff")
+PERMISSION_SOUND=$(get_sound_path "permission_request" "/System/Library/Sounds/Frog.aiff")
+
 # 1. stop_hook.sh - 任务完成时播放声音
 STOP_ENABLED=$(is_hook_enabled "stop")
 if [ "$STOP_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/stop_hook.sh" << 'EOF'
+    cat > "$HOOKS_DIR/stop_hook.sh" << EOF
 #!/bin/bash
 # Claude Code Stop Hook - 任务完成时播放声音
-# 使用 macOS 系统声音：Sosumi (经典完成提示音)
-
-# 检测是否在终端中运行（避免在 IDE 中误触发）
-if [[ -t 1 ]]; then
-    afplay /System/Library/Sounds/Sosumi.aiff &>/dev/null &
-fi
+afplay "$STOP_SOUND" &>/dev/null &
 EOF
-    echo "  ✅ stop_hook: 已启用 (Sosumi)"
+    echo "  ✅ stop_hook: 已启用 ($STOP_SOUND)"
 else
-    # 创建空脚本或禁用脚本
     cat > "$HOOKS_DIR/stop_hook.sh" << 'EOF'
 #!/bin/bash
 # Claude Code Stop Hook - 已禁用
@@ -112,17 +121,12 @@ fi
 # 2. notification_hook.sh - 需要授权时播放声音
 NOTIFICATION_ENABLED=$(is_hook_enabled "notification")
 if [ "$NOTIFICATION_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/notification_hook.sh" << 'EOF'
+    cat > "$HOOKS_DIR/notification_hook.sh" << EOF
 #!/bin/bash
 # Claude Code Notification Hook - 需要授权时播放声音
-# 使用 macOS 系统声音：Basso (警告音)
-
-# 检测是否在终端中运行
-if [[ -t 1 ]]; then
-    afplay /System/Library/Sounds/Basso.aiff &>/dev/null &
-fi
+afplay "$NOTIFICATION_SOUND" &>/dev/null &
 EOF
-    echo "  ✅ notification_hook: 已启用 (Basso)"
+    echo "  ✅ notification_hook: 已启用 ($NOTIFICATION_SOUND)"
 else
     cat > "$HOOKS_DIR/notification_hook.sh" << 'EOF'
 #!/bin/bash
@@ -135,16 +139,12 @@ fi
 # 3. subagent_stop_hook.sh - 子代理任务完成
 SUBAGENT_ENABLED=$(is_hook_enabled "subagent_stop")
 if [ "$SUBAGENT_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/subagent_stop_hook.sh" << 'EOF'
+    cat > "$HOOKS_DIR/subagent_stop_hook.sh" << EOF
 #!/bin/bash
 # Claude Code Subagent Stop Hook - 子任务完成时播放声音
-# 使用 macOS 系统声音：Ping (清脆提示音)
-
-if [[ -t 1 ]]; then
-    afplay /System/Library/Sounds/Ping.aiff &>/dev/null &
-fi
+afplay "$SUBAGENT_SOUND" &>/dev/null &
 EOF
-    echo "  ✅ subagent_stop_hook: 已启用 (Ping)"
+    echo "  ✅ subagent_stop_hook: 已启用 ($SUBAGENT_SOUND)"
 else
     cat > "$HOOKS_DIR/subagent_stop_hook.sh" << 'EOF'
 #!/bin/bash
@@ -157,16 +157,12 @@ fi
 # 4. permission_request_hook.sh - 权限请求时播放声音
 PERMISSION_ENABLED=$(is_hook_enabled "permission_request")
 if [ "$PERMISSION_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/permission_request_hook.sh" << 'EOF'
+    cat > "$HOOKS_DIR/permission_request_hook.sh" << EOF
 #!/bin/bash
 # Claude Code Permission Request Hook - 权限请求时播放声音
-# 使用 macOS 系统声音：Frog (青蛙声，引起注意)
-
-if [[ -t 1 ]]; then
-    afplay /System/Library/Sounds/Frog.aiff &>/dev/null &
-fi
+afplay "$PERMISSION_SOUND" &>/dev/null &
 EOF
-    echo "  ✅ permission_request_hook: 已启用 (Frog)"
+    echo "  ✅ permission_request_hook: 已启用 ($PERMISSION_SOUND)"
 else
     cat > "$HOOKS_DIR/permission_request_hook.sh" << 'EOF'
 #!/bin/bash
@@ -181,7 +177,7 @@ echo "🔧 设置权限..."
 chmod +x "$HOOKS_DIR"/*.sh
 
 # 创建配置说明文件
-cat > "$SOUND_HOOKS_DIR/README.md" << 'EOF'
+cat > "$CONFIG_DIR/README.md" << 'EOF'
 # Claude Code macOS Sound Hooks
 
 基于 [claude-code-audio-hooks](https://github.com/ChanMeng666/claude-code-audio-hooks) 原理的简化实现。
@@ -239,7 +235,7 @@ echo "=========================================="
 echo "✅ 安装完成！"
 echo ""
 echo "📍 Hook 文件位置：$HOOKS_DIR"
-echo "📖 说明文档：$SOUND_HOOKS_DIR/README.md"
+echo "📖 说明文档：$CONFIG_DIR/README.md"
 echo ""
 echo "🔄 请重启 Claude Code 以启用声音通知"
 echo ""

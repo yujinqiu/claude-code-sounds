@@ -5,6 +5,10 @@
 CONFIG_DIR="$HOME/.claude/claude-code-macos-sound-hooks"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 HOOKS_DIR="$HOME/.claude/hooks"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 有效的 hook 名称列表
+VALID_HOOKS=("stop" "notification" "subagent_stop" "permission_request" "global")
 
 # 确保配置目录存在
 mkdir -p "$CONFIG_DIR"
@@ -23,6 +27,17 @@ if [ ! -f "$CONFIG_FILE" ]; then
 }
 EOF
 fi
+
+# 校验 hook 名称是否合法
+is_valid_hook() {
+    local hook="$1"
+    for valid in "${VALID_HOOKS[@]}"; do
+        if [ "$valid" = "$hook" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
 # 显示帮助
 show_help() {
@@ -84,6 +99,19 @@ set_hook() {
     local hook_name="$1"
     local enabled="$2"
     
+    # 参数校验
+    if [ -z "$hook_name" ]; then
+        echo "❌ 请指定 hook 名称"
+        echo "   用法：$0 enable <hook>"
+        exit 1
+    fi
+    
+    if ! is_valid_hook "$hook_name"; then
+        echo "❌ 无效的 hook 名称：$hook_name"
+        echo "   有效值：${VALID_HOOKS[*]}"
+        exit 1
+    fi
+    
     if ! command -v jq &>/dev/null; then
         echo "❌ 错误：需要安装 jq"
         echo "   运行：brew install jq"
@@ -92,22 +120,37 @@ set_hook() {
     
     # 更新配置
     local tmp_file=$(mktemp)
+    trap "rm -f $tmp_file" EXIT
     if [ "$hook_name" = "global" ]; then
         jq ".global.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
     else
         jq ".hooks.${hook_name}.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
     fi
     
-    echo "✅ 已${enabled} $hook_name"
+    if [ "$enabled" = "true" ]; then
+        echo "✅ 已启用 $hook_name"
+    else
+        echo "⏸️  已禁用 $hook_name"
+    fi
     
     # 重新应用配置（重新安装）
     echo "🔄 应用配置..."
-    bash "$(dirname "$0")/install.sh"
+    bash "$SCRIPT_DIR/install.sh"
 }
 
 # 切换 Hook 状态
 toggle_hook() {
     local hook_name="$1"
+    
+    if [ -z "$hook_name" ]; then
+        echo "❌ 请指定 hook 名称"
+        exit 1
+    fi
+    
+    if ! is_valid_hook "$hook_name"; then
+        echo "❌ 无效的 hook 名称：$hook_name"
+        exit 1
+    fi
     
     if ! command -v jq &>/dev/null; then
         echo "❌ 错误：需要安装 jq"
@@ -143,10 +186,15 @@ all_hooks() {
     fi
     
     local tmp_file=$(mktemp)
+    trap "rm -f $tmp_file" EXIT
     jq ".global.enabled = $enabled | .hooks.stop.enabled = $enabled | .hooks.notification.enabled = $enabled | .hooks.subagent_stop.enabled = $enabled | .hooks.permission_request.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
     
-    echo "✅ 已${enabled}所有声音通知"
-    bash "$(dirname "$0")/install.sh"
+    if [ "$enabled" = "true" ]; then
+        echo "✅ 已启用所有声音通知"
+    else
+        echo "⏸️  已禁用所有声音通知"
+    fi
+    bash "$SCRIPT_DIR/install.sh"
 }
 
 # 主逻辑
@@ -171,7 +219,7 @@ case "${1:-}" in
         ;;
     edit)
         ${EDITOR:-nano} "$CONFIG_FILE"
-        bash "$(dirname "$0")/install.sh"
+        bash "$SCRIPT_DIR/install.sh"
         ;;
     -h|--help|help|"")
         show_help
