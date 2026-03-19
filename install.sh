@@ -1,30 +1,39 @@
 #!/bin/bash
 # Claude Code macOS Sound Hooks - 安装脚本
-# 基于 https://github.com/ChanMeng666/claude-code-audio-hooks 原理实现
-# 简化版：直接使用 macOS 系统声音，无需额外依赖
+# 在 macOS 上为 Claude Code 的关键事件添加系统声音通知
+# 核心原理：在 ~/.claude/settings.json 中注册 hooks，指向播放声音的脚本
 
 set -e
 
 echo "🐟 Claude Code macOS Sound Hooks 安装程序"
 echo "=========================================="
 
-# 定义路径
-HOOKS_DIR="$HOME/.claude/hooks"
-CONFIG_DIR="$HOME/.claude/claude-code-macos-sound-hooks"
+# ── 路径定义 ──────────────────────────────────────────────
+
+CLAUDE_DIR="$HOME/.claude"
+HOOKS_DIR="$CLAUDE_DIR/hooks"
+SETTINGS_FILE="$CLAUDE_DIR/settings.json"
+CONFIG_DIR="$CLAUDE_DIR/claude-code-macos-sound-hooks"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
-# 创建目录
-echo "📁 创建目录..."
+# ── 前置检查 ──────────────────────────────────────────────
+
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo "❌ 此脚本仅支持 macOS (需要 afplay 命令)"
+    exit 1
+fi
+
 mkdir -p "$HOOKS_DIR"
 mkdir -p "$CONFIG_DIR"
 
-# 创建/读取配置文件
+# ── 配置文件 ──────────────────────────────────────────────
+
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "📝 创建默认配置文件..."
-    cat > "$CONFIG_FILE" << 'EOF'
+    cat > "$CONFIG_FILE" << 'CONF'
 {
   "_comment": "Claude Code macOS Sound Hooks 配置文件",
-  "_help": "将 enabled 设为 false 可禁用对应声音通知",
+  "_help": "将 enabled 设为 false 可禁用对应声音; sound 可改为任意 .aiff 路径",
   "hooks": {
     "stop": {
       "enabled": true,
@@ -34,214 +43,189 @@ if [ ! -f "$CONFIG_FILE" ]; then
     "notification": {
       "enabled": true,
       "sound": "/System/Library/Sounds/Basso.aiff",
-      "description": "需要授权时播放"
+      "description": "需要用户关注时播放"
     },
     "subagent_stop": {
       "enabled": true,
       "sound": "/System/Library/Sounds/Ping.aiff",
       "description": "子任务完成时播放"
-    },
-    "permission_request": {
-      "enabled": true,
-      "sound": "/System/Library/Sounds/Frog.aiff",
-      "description": "权限请求时播放"
     }
   },
   "global": {
-    "enabled": true,
-    "_comment": "设为 false 可临时禁用所有声音通知"
+    "enabled": true
   }
 }
-EOF
+CONF
 else
-    echo "📝 使用现有配置文件..."
+    echo "📝 使用现有配置文件: $CONFIG_FILE"
 fi
 
-# 读取配置的函数
-is_hook_enabled() {
-    local hook_name="$1"
+# ── 配置读取函数 ──────────────────────────────────────────
+
+read_config() {
+    local jq_expr="$1"
+    local default="$2"
     if command -v jq &>/dev/null; then
-        jq -r ".hooks.${hook_name}.enabled // true" "$CONFIG_FILE"
+        jq -r "$jq_expr // \"$default\"" "$CONFIG_FILE"
     else
-        echo "true"
+        echo "$default"
     fi
 }
 
-is_global_enabled() {
-    if command -v jq &>/dev/null; then
-        jq -r ".global.enabled // true" "$CONFIG_FILE"
-    else
-        echo "true"
-    fi
-}
-
-get_sound_path() {
-    local hook_name="$1"
-    local default_sound="$2"
-    if command -v jq &>/dev/null; then
-        jq -r ".hooks.${hook_name}.sound // \"$default_sound\"" "$CONFIG_FILE"
-    else
-        echo "$default_sound"
-    fi
-}
-
-# 检查全局开关
-GLOBAL_ENABLED=$(is_global_enabled)
+GLOBAL_ENABLED=$(read_config '.global.enabled' 'true')
 if [ "$GLOBAL_ENABLED" != "true" ]; then
-    echo "⚠️  全局声音通知已禁用，所有 Hook 将不会播放声音"
+    echo "⚠️  全局声音已禁用 (config.json → global.enabled = false)"
 fi
 
-# 创建 hook 脚本
+# ── 创建 Hook 脚本 ────────────────────────────────────────
+# 每个脚本运行时读取 config.json，支持热更新配置
+
 echo "📝 创建 Hook 脚本..."
 
-# 获取各 Hook 的声音路径（从配置文件读取）
-STOP_SOUND=$(get_sound_path "stop" "/System/Library/Sounds/Sosumi.aiff")
-NOTIFICATION_SOUND=$(get_sound_path "notification" "/System/Library/Sounds/Basso.aiff")
-SUBAGENT_SOUND=$(get_sound_path "subagent_stop" "/System/Library/Sounds/Ping.aiff")
-PERMISSION_SOUND=$(get_sound_path "permission_request" "/System/Library/Sounds/Frog.aiff")
+# 通用播放脚本：读取配置 → 检查开关 → 播放声音
+create_hook_script() {
+    local hook_name="$1"
+    local default_sound="$2"
+    local script_path="$HOOKS_DIR/${hook_name}_hook.sh"
 
-# 1. stop_hook.sh - 任务完成时播放声音
-STOP_ENABLED=$(is_hook_enabled "stop")
-if [ "$STOP_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/stop_hook.sh" << EOF
+    cat > "$script_path" << SCRIPT
 #!/bin/bash
-# Claude Code Stop Hook - 任务完成时播放声音
-afplay "$STOP_SOUND" &>/dev/null &
-EOF
-    echo "  ✅ stop_hook: 已启用 ($STOP_SOUND)"
+# Claude Code Hook: $hook_name
+# 运行时从 config.json 读取配置，支持热更新
+
+CONFIG="$CONFIG_DIR/config.json"
+
+# 无 jq 时使用默认值
+if command -v jq &>/dev/null && [ -f "\$CONFIG" ]; then
+    GLOBAL=\$(jq -r '.global.enabled // true' "\$CONFIG")
+    ENABLED=\$(jq -r '.hooks.$hook_name.enabled // true' "\$CONFIG")
+    SOUND=\$(jq -r '.hooks.$hook_name.sound // "$default_sound"' "\$CONFIG")
 else
-    cat > "$HOOKS_DIR/stop_hook.sh" << 'EOF'
-#!/bin/bash
-# Claude Code Stop Hook - 已禁用
-exit 0
-EOF
-    echo "  ⏸️  stop_hook: 已禁用"
+    GLOBAL=true
+    ENABLED=true
+    SOUND="$default_sound"
 fi
 
-# 2. notification_hook.sh - 需要授权时播放声音
-NOTIFICATION_ENABLED=$(is_hook_enabled "notification")
-if [ "$NOTIFICATION_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/notification_hook.sh" << EOF
-#!/bin/bash
-# Claude Code Notification Hook - 需要授权时播放声音
-afplay "$NOTIFICATION_SOUND" &>/dev/null &
-EOF
-    echo "  ✅ notification_hook: 已启用 ($NOTIFICATION_SOUND)"
-else
-    cat > "$HOOKS_DIR/notification_hook.sh" << 'EOF'
-#!/bin/bash
-# Claude Code Notification Hook - 已禁用
+[ "\$GLOBAL" = "true" ] && [ "\$ENABLED" = "true" ] && afplay "\$SOUND" &>/dev/null &
 exit 0
-EOF
-    echo "  ⏸️  notification_hook: 已禁用"
+SCRIPT
+
+    chmod +x "$script_path"
+    echo "  ✅ ${hook_name}_hook.sh"
+}
+
+create_hook_script "stop"          "/System/Library/Sounds/Sosumi.aiff"
+create_hook_script "notification"  "/System/Library/Sounds/Basso.aiff"
+create_hook_script "subagent_stop" "/System/Library/Sounds/Ping.aiff"
+
+# ── 注册到 settings.json (关键步骤!) ─────────────────────
+# Claude Code 只执行 settings.json 中声明的 hooks，不会自动扫描目录
+
+echo "⚙️  注册 Hooks 到 Claude Code settings.json..."
+
+HOOKS_JSON=$(cat << 'HOOKDEF'
+{
+  "Stop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ~/.claude/hooks/stop_hook.sh"
+        }
+      ]
+    }
+  ],
+  "Notification": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ~/.claude/hooks/notification_hook.sh"
+        }
+      ]
+    }
+  ],
+  "SubagentStop": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ~/.claude/hooks/subagent_stop_hook.sh"
+        }
+      ]
+    }
+  ]
+}
+HOOKDEF
+)
+
+# 合并到现有 settings.json (不覆盖其他配置)
+if [ -f "$SETTINGS_FILE" ]; then
+    echo "  📄 发现现有 settings.json，合并 hooks 配置..."
+
+    if command -v jq &>/dev/null; then
+        # jq 可用：精确合并
+        MERGED=$(jq --argjson hooks "$HOOKS_JSON" '.hooks = ($hooks * (.hooks // {}))' "$SETTINGS_FILE")
+        echo "$MERGED" > "$SETTINGS_FILE"
+    else
+        # 无 jq：使用 Python (macOS 自带)
+        python3 -c "
+import json, sys
+
+with open('$SETTINGS_FILE', 'r') as f:
+    settings = json.load(f)
+
+hooks = json.loads('''$HOOKS_JSON''')
+existing_hooks = settings.get('hooks', {})
+hooks.update(existing_hooks)
+settings['hooks'] = hooks
+
+with open('$SETTINGS_FILE', 'w') as f:
+    json.dump(settings, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+    fi
+else
+    echo "  📄 创建新的 settings.json..."
+    if command -v jq &>/dev/null; then
+        echo "{}" | jq --argjson hooks "$HOOKS_JSON" '. + {hooks: $hooks}' > "$SETTINGS_FILE"
+    else
+        python3 -c "
+import json
+settings = {'hooks': json.loads('''$HOOKS_JSON''')}
+with open('$SETTINGS_FILE', 'w') as f:
+    json.dump(settings, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+    fi
 fi
 
-# 3. subagent_stop_hook.sh - 子代理任务完成
-SUBAGENT_ENABLED=$(is_hook_enabled "subagent_stop")
-if [ "$SUBAGENT_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/subagent_stop_hook.sh" << EOF
-#!/bin/bash
-# Claude Code Subagent Stop Hook - 子任务完成时播放声音
-afplay "$SUBAGENT_SOUND" &>/dev/null &
-EOF
-    echo "  ✅ subagent_stop_hook: 已启用 ($SUBAGENT_SOUND)"
-else
-    cat > "$HOOKS_DIR/subagent_stop_hook.sh" << 'EOF'
-#!/bin/bash
-# Claude Code Subagent Stop Hook - 已禁用
-exit 0
-EOF
-    echo "  ⏸️  subagent_stop_hook: 已禁用"
-fi
+echo "  ✅ Hooks 已注册到 settings.json"
 
-# 4. permission_request_hook.sh - 权限请求时播放声音
-PERMISSION_ENABLED=$(is_hook_enabled "permission_request")
-if [ "$PERMISSION_ENABLED" = "true" ] && [ "$GLOBAL_ENABLED" = "true" ]; then
-    cat > "$HOOKS_DIR/permission_request_hook.sh" << EOF
-#!/bin/bash
-# Claude Code Permission Request Hook - 权限请求时播放声音
-afplay "$PERMISSION_SOUND" &>/dev/null &
-EOF
-    echo "  ✅ permission_request_hook: 已启用 ($PERMISSION_SOUND)"
-else
-    cat > "$HOOKS_DIR/permission_request_hook.sh" << 'EOF'
-#!/bin/bash
-# Claude Code Permission Request Hook - 已禁用
-exit 0
-EOF
-    echo "  ⏸️  permission_request_hook: 已禁用"
-fi
+# ── 测试 ──────────────────────────────────────────────────
 
-# 设置执行权限
-echo "🔧 设置权限..."
-chmod +x "$HOOKS_DIR"/*.sh
-
-# 创建配置说明文件
-cat > "$CONFIG_DIR/README.md" << 'EOF'
-# Claude Code macOS Sound Hooks
-
-基于 [claude-code-audio-hooks](https://github.com/ChanMeng666/claude-code-audio-hooks) 原理的简化实现。
-
-## 功能
-
-| Hook 类型 | 触发时机 | 系统声音 |
-|----------|---------|---------|
-| stop_hook | 任务完成 | Sosumi (经典完成音) |
-| notification_hook | 需要授权 | Basso (警告音) |
-| subagent_stop_hook | 子任务完成 | Ping (清脆提示音) |
-| permission_request_hook | 权限请求 | Frog (青蛙声) |
-
-## 自定义声音
-
-编辑 `~/.claude/hooks/*.sh` 文件，修改 `afplay` 命令后的声音文件路径。
-
-macOS 系统声音位于：`/System/Library/Sounds/`
-
-可用声音：
-- Sosumi.aiff (默认完成音)
-- Basso.aiff (警告音)
-- Ping.aiff (清脆音)
-- Frog.aiff (青蛙声)
-- Pop.aiff
-- Glass.aiff
-- Hero.aiff
-- Morse.aiff
-- Submarine.aiff
-- etc.
-
-## 禁用某个 Hook
-
-```bash
-chmod -x ~/.claude/hooks/stop_hook.sh  # 禁用任务完成提示
-chmod +x ~/.claude/hooks/stop_hook.sh  # 启用
-```
-
-## 卸载
-
-```bash
-rm -rf ~/.claude/hooks/*.sh
-rm -rf ~/.claude/claude-code-macos-sound-hooks
-```
-EOF
-
-# 测试
 echo ""
 echo "🎵 测试声音..."
 afplay /System/Library/Sounds/Sosumi.aiff &>/dev/null &
-echo "✅ 如果听到提示音，说明安装成功！"
+echo "  (如果听到提示音，说明系统声音正常)"
+
+# ── 完成 ──────────────────────────────────────────────────
 
 echo ""
 echo "=========================================="
 echo "✅ 安装完成！"
 echo ""
-echo "📍 Hook 文件位置：$HOOKS_DIR"
-echo "📖 说明文档：$CONFIG_DIR/README.md"
+echo "📍 Hook 脚本: $HOOKS_DIR/"
+echo "⚙️  注册配置: $SETTINGS_FILE (hooks 字段)"
+echo "🎛️  声音配置: $CONFIG_FILE"
 echo ""
-echo "🔄 请重启 Claude Code 以启用声音通知"
+echo "声音事件:"
+echo "  Stop          → Sosumi (任务完成)"
+echo "  Notification  → Basso  (需要关注)"
+echo "  SubagentStop  → Ping   (子任务完成)"
 echo ""
-echo "可用声音预览:"
-echo "  - Sosumi: 任务完成 (stop_hook)"
-echo "  - Basso:  需要授权 (notification_hook)"
-echo "  - Ping:   子任务完成 (subagent_stop_hook)"
-echo "  - Frog:   权限请求 (permission_request_hook)"
+echo "🔄 请重启 Claude Code 以生效"
 echo ""

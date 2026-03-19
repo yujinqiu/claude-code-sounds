@@ -8,7 +8,7 @@ HOOKS_DIR="$HOME/.claude/hooks"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 有效的 hook 名称列表
-VALID_HOOKS=("stop" "notification" "subagent_stop" "permission_request" "global")
+VALID_HOOKS=("stop" "notification" "subagent_stop" "global")
 
 # 确保配置目录存在
 mkdir -p "$CONFIG_DIR"
@@ -56,9 +56,8 @@ show_help() {
     echo ""
     echo "Hook 名称:"
     echo "  stop                任务完成提示 (Sosumi)"
-    echo "  notification        授权请求提示 (Basso)"
+    echo "  notification        需要关注提示 (Basso)"
     echo "  subagent_stop       子任务完成提示 (Ping)"
-    echo "  permission_request  权限请求提示 (Frog)"
     echo "  global              全局开关"
     echo ""
     echo "示例:"
@@ -82,7 +81,6 @@ show_status() {
         echo "  stop                : $(jq -r '.hooks.stop.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
         echo "  notification        : $(jq -r '.hooks.notification.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
         echo "  subagent_stop       : $(jq -r '.hooks.subagent_stop.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
-        echo "  permission_request  : $(jq -r '.hooks.permission_request.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
     else
         echo ""
         echo "⚠️  未安装 jq，无法读取详细配置"
@@ -187,7 +185,7 @@ all_hooks() {
     
     local tmp_file=$(mktemp)
     trap "rm -f $tmp_file" EXIT
-    jq ".global.enabled = $enabled | .hooks.stop.enabled = $enabled | .hooks.notification.enabled = $enabled | .hooks.subagent_stop.enabled = $enabled | .hooks.permission_request.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
+    jq ".global.enabled = $enabled | .hooks.stop.enabled = $enabled | .hooks.notification.enabled = $enabled | .hooks.subagent_stop.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
     
     if [ "$enabled" = "true" ]; then
         echo "✅ 已启用所有声音通知"
