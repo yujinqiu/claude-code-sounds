@@ -2,13 +2,13 @@
 # Claude Code macOS Sound Hooks - 管理脚本
 # 用于快速启用/禁用声音通知
 
-CONFIG_DIR="$HOME/.claude/claude-code-macos-sound-hooks"
+CONFIG_DIR="$HOME/.claude/claude-code-sounds"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 HOOKS_DIR="$HOME/.claude/hooks"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 有效的 hook 名称列表
-VALID_HOOKS=("stop" "notification" "subagent_stop" "global")
+VALID_HOOKS=("stop" "notification" "subagent_stop" "pre_tool_use" "global")
 
 # 确保配置目录存在
 mkdir -p "$CONFIG_DIR"
@@ -18,10 +18,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
     cat > "$CONFIG_FILE" << 'EOF'
 {
   "hooks": {
-    "stop": { "enabled": true, "sound": "/System/Library/Sounds/Sosumi.aiff" },
+    "stop": { "enabled": true, "sound": "/System/Library/Sounds/Glass.aiff" },
     "notification": { "enabled": true, "sound": "/System/Library/Sounds/Basso.aiff" },
-    "subagent_stop": { "enabled": true, "sound": "/System/Library/Sounds/Ping.aiff" },
-    "permission_request": { "enabled": true, "sound": "/System/Library/Sounds/Frog.aiff" }
+    "subagent_stop": { "enabled": true, "sound": "/System/Library/Sounds/Glass.aiff" },
+    "pre_tool_use": { "enabled": true, "sound": "/System/Library/Sounds/Pop.aiff" }
   },
   "global": { "enabled": true }
 }
@@ -55,9 +55,10 @@ show_help() {
     echo "  edit                编辑配置文件"
     echo ""
     echo "Hook 名称:"
-    echo "  stop                任务完成提示 (Sosumi)"
+    echo "  stop                任务完成提示 (Glass)"
     echo "  notification        需要关注提示 (Basso)"
-    echo "  subagent_stop       子任务完成提示 (Ping)"
+    echo "  subagent_stop       子任务完成提示 (Glass)"
+    echo "  pre_tool_use        权限请求提示 (Pop)"
     echo "  global              全局开关"
     echo ""
     echo "示例:"
@@ -81,6 +82,7 @@ show_status() {
         echo "  stop                : $(jq -r '.hooks.stop.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
         echo "  notification        : $(jq -r '.hooks.notification.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
         echo "  subagent_stop       : $(jq -r '.hooks.subagent_stop.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
+        echo "  pre_tool_use        : $(jq -r '.hooks.pre_tool_use.enabled' "$CONFIG_FILE" 2>/dev/null || echo 'true')"
     else
         echo ""
         echo "⚠️  未安装 jq，无法读取详细配置"
@@ -185,7 +187,7 @@ all_hooks() {
     
     local tmp_file=$(mktemp)
     trap "rm -f $tmp_file" EXIT
-    jq ".global.enabled = $enabled | .hooks.stop.enabled = $enabled | .hooks.notification.enabled = $enabled | .hooks.subagent_stop.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
+    jq ".global.enabled = $enabled | .hooks.stop.enabled = $enabled | .hooks.notification.enabled = $enabled | .hooks.subagent_stop.enabled = $enabled | .hooks.pre_tool_use.enabled = $enabled" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
     
     if [ "$enabled" = "true" ]; then
         echo "✅ 已启用所有声音通知"

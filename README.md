@@ -1,4 +1,4 @@
-# Claude Code macOS Sound Hooks
+# Claude Code Sounds
 
 基于 [claude-code-audio-hooks](https://github.com/ChanMeng666/claude-code-audio-hooks) 原理的简化实现。
 
@@ -6,18 +6,18 @@
 
 | Hook 类型 | 触发时机 | 系统声音 |
 |----------|---------|---------|
-| stop_hook | 任务完成 | Sosumi (经典完成音) |
-| notification_hook | 需要授权 | Basso (警告音) |
-| subagent_stop_hook | 子任务完成 | Ping (清脆提示音) |
-| permission_request_hook | 权限请求 | Frog (青蛙声) |
+| stop_hook | 任务完成 | Glass (玻璃声) |
+| notification_hook | 需要用户关注 | Basso (警告音) |
+| subagent_stop_hook | 子任务完成 | Glass (玻璃声) |
+| pre_tool_use_hook | 权限请求 | Pop (气泡声) |
 
 ## 🚀 快速开始
 
 ### 安装
 
 ```bash
-git clone git@git.qtech.cn:yujinqiu/claude-code-macos-sound-hooks.git
-cd claude-code-macos-sound-hooks
+git clone https://github.com/yujinqiu/claude-code-sounds.git
+cd claude-code-sounds
 bash install.sh
 ```
 
@@ -49,7 +49,7 @@ bash install.sh
 
 ### 配置文件位置
 
-`~/.claude/claude-code-macos-sound-hooks/config.json`
+`~/.claude/claude-code-sounds/config.json`
 
 ### 配置示例
 
@@ -64,15 +64,17 @@ bash install.sh
     "notification": {
       "enabled": false,
       "sound": "/System/Library/Sounds/Basso.aiff",
-      "description": "需要授权时播放"
+      "description": "需要用户关注时播放"
     },
     "subagent_stop": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Ping.aiff"
+      "sound": "/System/Library/Sounds/Ping.aiff",
+      "description": "子任务完成时播放"
     },
-    "permission_request": {
+    "pre_tool_use": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Frog.aiff"
+      "sound": "/System/Library/Sounds/Frog.aiff",
+      "description": "权限请求时播放"
     }
   },
   "global": {
@@ -139,7 +141,7 @@ macOS 系统声音位于：`/System/Library/Sounds/`
 | `./manage.sh all-off` | 禁用所有声音 |
 | `./manage.sh edit` | 编辑配置文件 |
 
-Hook 名称：`stop`, `notification`, `subagent_stop`, `permission_request`, `global`
+Hook 名称：`stop`, `notification`, `subagent_stop`, `pre_tool_use`, `global`
 
 ## ❓ 常见问题
 
@@ -154,12 +156,12 @@ Hook 名称：`stop`, `notification`, `subagent_stop`, `permission_request`, `gl
 ```bash
 ./manage.sh disable notification
 ./manage.sh disable subagent_stop
-./manage.sh disable permission_request
+./manage.sh disable pre_tool_use
 ```
 
 ### Q: 如何恢复默认配置？
 ```bash
-rm ~/.claude/claude-code-macos-sound-hooks/config.json
+rm ~/.claude/claude-code-sounds/config.json
 bash install.sh
 ```
 
@@ -167,5 +169,5 @@ bash install.sh
 
 ```bash
 rm -rf ~/.claude/hooks/*.sh
-rm -rf ~/.claude/claude-code-macos-sound-hooks
+rm -rf ~/.claude/claude-code-sounds
 ```

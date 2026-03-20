@@ -13,7 +13,7 @@ echo "=========================================="
 CLAUDE_DIR="$HOME/.claude"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
-CONFIG_DIR="$CLAUDE_DIR/claude-code-macos-sound-hooks"
+CONFIG_DIR="$CLAUDE_DIR/claude-code-sounds"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 
 # ── 前置检查 ──────────────────────────────────────────────
@@ -37,7 +37,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   "hooks": {
     "stop": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Sosumi.aiff",
+      "sound": "/System/Library/Sounds/Glass.aiff",
       "description": "任务完成时播放"
     },
     "notification": {
@@ -47,8 +47,13 @@ if [ ! -f "$CONFIG_FILE" ]; then
     },
     "subagent_stop": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Ping.aiff",
+      "sound": "/System/Library/Sounds/Glass.aiff",
       "description": "子任务完成时播放"
+    },
+    "pre_tool_use": {
+      "enabled": true,
+      "sound": "/System/Library/Sounds/Pop.aiff",
+      "description": "权限请求时播放"
     }
   },
   "global": {
@@ -114,9 +119,10 @@ SCRIPT
     echo "  ✅ ${hook_name}_hook.sh"
 }
 
-create_hook_script "stop"          "/System/Library/Sounds/Sosumi.aiff"
+create_hook_script "stop"          "/System/Library/Sounds/Glass.aiff"
 create_hook_script "notification"  "/System/Library/Sounds/Basso.aiff"
-create_hook_script "subagent_stop" "/System/Library/Sounds/Ping.aiff"
+create_hook_script "subagent_stop" "/System/Library/Sounds/Glass.aiff"
+create_hook_script "pre_tool_use"  "/System/Library/Sounds/Pop.aiff"
 
 # ── 注册到 settings.json (关键步骤!) ─────────────────────
 # Claude Code 只执行 settings.json 中声明的 hooks，不会自动扫描目录
@@ -154,6 +160,17 @@ HOOKS_JSON=$(cat << 'HOOKDEF'
         {
           "type": "command",
           "command": "bash ~/.claude/hooks/subagent_stop_hook.sh"
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "bash ~/.claude/hooks/pre_tool_use_hook.sh"
         }
       ]
     }
@@ -223,9 +240,10 @@ echo "⚙️  注册配置: $SETTINGS_FILE (hooks 字段)"
 echo "🎛️  声音配置: $CONFIG_FILE"
 echo ""
 echo "声音事件:"
-echo "  Stop          → Sosumi (任务完成)"
+echo "  Stop          → Glass  (任务完成)"
 echo "  Notification  → Basso  (需要关注)"
-echo "  SubagentStop  → Ping   (子任务完成)"
+echo "  SubagentStop  → Glass  (子任务完成)"
+echo "  PreToolUse    → Pop    (权限请求)"
 echo ""
 echo "🔄 请重启 Claude Code 以生效"
 echo ""
