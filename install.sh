@@ -42,17 +42,17 @@ if [ ! -f "$CONFIG_FILE" ]; then
     },
     "notification": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Basso.aiff",
+      "sound": "/System/Library/Sounds/Bottle.aiff",
       "description": "需要用户关注时播放"
     },
     "subagent_stop": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Glass.aiff",
+      "sound": "/System/Library/Sounds/Tink.aiff",
       "description": "子任务完成时播放"
     },
     "pre_tool_use": {
       "enabled": true,
-      "sound": "/System/Library/Sounds/Pop.aiff",
+      "sound": "/System/Library/Sounds/Submarine.aiff",
       "description": "权限请求时播放"
     }
   },
@@ -120,9 +120,9 @@ SCRIPT
 }
 
 create_hook_script "stop"          "/System/Library/Sounds/Glass.aiff"
-create_hook_script "notification"  "/System/Library/Sounds/Basso.aiff"
-create_hook_script "subagent_stop" "/System/Library/Sounds/Glass.aiff"
-create_hook_script "pre_tool_use"  "/System/Library/Sounds/Pop.aiff"
+create_hook_script "notification"  "/System/Library/Sounds/Bottle.aiff"
+create_hook_script "subagent_stop" "/System/Library/Sounds/Tink.aiff"
+create_hook_script "pre_tool_use"  "/System/Library/Sounds/Submarine.aiff"
 
 # ── 注册到 settings.json (关键步骤!) ─────────────────────
 # Claude Code 只执行 settings.json 中声明的 hooks，不会自动扫描目录
@@ -240,10 +240,10 @@ echo "⚙️  注册配置: $SETTINGS_FILE (hooks 字段)"
 echo "🎛️  声音配置: $CONFIG_FILE"
 echo ""
 echo "声音事件:"
-echo "  Stop          → Glass  (任务完成)"
-echo "  Notification  → Basso  (需要关注)"
-echo "  SubagentStop  → Glass  (子任务完成)"
-echo "  PreToolUse    → Pop    (权限请求)"
+echo "  Stop          → Glass      (任务完成)"
+echo "  Notification  → Bottle       (需要关注)"
+echo "  SubagentStop  → Tink       (子任务完成)"
+echo "  PreToolUse    → Submarine  (权限请求)"
 echo ""
 echo "🔄 请重启 Claude Code 以生效"
 echo ""

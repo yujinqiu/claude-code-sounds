@@ -19,9 +19,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
 {
   "hooks": {
     "stop": { "enabled": true, "sound": "/System/Library/Sounds/Glass.aiff" },
-    "notification": { "enabled": true, "sound": "/System/Library/Sounds/Basso.aiff" },
-    "subagent_stop": { "enabled": true, "sound": "/System/Library/Sounds/Glass.aiff" },
-    "pre_tool_use": { "enabled": true, "sound": "/System/Library/Sounds/Pop.aiff" }
+    "notification": { "enabled": true, "sound": "/System/Library/Sounds/Bottle.aiff" },
+    "subagent_stop": { "enabled": true, "sound": "/System/Library/Sounds/Tink.aiff" },
+    "pre_tool_use": { "enabled": true, "sound": "/System/Library/Sounds/Submarine.aiff" }
   },
   "global": { "enabled": true }
 }
@@ -56,9 +56,9 @@ show_help() {
     echo ""
     echo "Hook 名称:"
     echo "  stop                任务完成提示 (Glass)"
-    echo "  notification        需要关注提示 (Basso)"
-    echo "  subagent_stop       子任务完成提示 (Glass)"
-    echo "  pre_tool_use        权限请求提示 (Pop)"
+    echo "  notification        需要关注提示 (Bottle)"
+    echo "  subagent_stop       子任务完成提示 (Tink)"
+    echo "  pre_tool_use        权限请求提示 (Submarine)"
     echo "  global              全局开关"
     echo ""
     echo "示例:"

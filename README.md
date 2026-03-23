@@ -6,10 +6,10 @@
 
 | Hook 类型 | 触发时机 | 系统声音 |
 |----------|---------|---------|
-| stop_hook | 任务完成 | Glass (玻璃声) |
-| notification_hook | 需要用户关注 | Basso (警告音) |
-| subagent_stop_hook | 子任务完成 | Glass (玻璃声) |
-| pre_tool_use_hook | 权限请求 | Pop (气泡声) |
+| stop_hook | 任务完成 | Glass (成功·愉悦) |
+| notification_hook | 需要用户关注 | Bottle (清脆·关注) |
+| subagent_stop_hook | 子任务完成 | Tink (轻提示) |
+| pre_tool_use_hook | 权限请求 | Submarine (需要授权) |
 
 ## 🚀 快速开始
 
@@ -63,7 +63,7 @@ bash install.sh
     },
     "notification": {
       "enabled": false,
-      "sound": "/System/Library/Sounds/Basso.aiff",
+      "sound": "/System/Library/Sounds/Bottle.aiff",
       "description": "需要用户关注时播放"
     },
     "subagent_stop": {
